@@ -1,0 +1,46 @@
+From bf3db50beadadf58a4a66ff336fb3ece5d9a966e Mon Sep 17 00:00:00 2001
+From: Homework Implementation <local@example.invalid>
+Date: Sun, 4 Oct 2026 22:03:42 +0000
+Subject: [PATCH 2/3] tag detail
+
+---
+ api/urls.py  |  1 +
+ api/views.py | 15 +++++++++++++++
+ 2 files changed, 16 insertions(+)
+
+diff --git a/api/urls.py b/api/urls.py
+index 8e223ed..4f31bb8 100644
+--- a/api/urls.py
++++ b/api/urls.py
+@@ -10,4 +10,5 @@ urlpatterns = [
+     path("categories/", views.category_list, name="category_list"),
+     path("categories/<int:category_id>/", views.category_detail, name="category_detail"),
+     path("tags/", views.tag_list, name="tag_list"),
++    path("tags/<int:tag_id>/", views.tag_detail, name="tag_detail"),
+ ]
+diff --git a/api/views.py b/api/views.py
+index 7c0a17b..4a4ab8c 100644
+--- a/api/views.py
++++ b/api/views.py
+@@ -74,3 +74,18 @@ def tag_list(request):
+         serializer.save()
+         return Response(serializer.data, status=status.HTTP_201_CREATED)
+     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
++
++
++@api_view(["GET", "PUT", "DELETE"])
++def tag_detail(request, tag_id):
++    tag = get_object_or_404(Tag, pk=tag_id)
++    if request.method == "GET":
++        return Response(TagSerializer(tag).data)
++    if request.method == "PUT":
++        serializer = TagSerializer(tag, data=request.data)
++        if serializer.is_valid():
++            serializer.save()
++            return Response(serializer.data, status=status.HTTP_200_OK)
++        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
++    tag.delete()
++    return Response(status=status.HTTP_204_NO_CONTENT)
+-- 
+2.47.3
+

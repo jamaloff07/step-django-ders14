@@ -1,0 +1,299 @@
+From 752ab540a03aa927c885d691093222f088ca4ec7 Mon Sep 17 00:00:00 2001
+From: Homework Implementation <local@example.invalid>
+Date: Sun, 4 Oct 2026 22:03:44 +0000
+Subject: [PATCH 3/3] stats
+
+---
+ README-der14.md                           | 45 ++++++++++++++
+ api/tests.py                              | 76 +++++++++++++++++++++++
+ api/urls.py                               |  1 +
+ api/views.py                              | 10 +++
+ postman/step-blog.postman_collection.json | 52 ++++++++++++++++
+ uv.lock                                   | 25 ++++++++
+ 6 files changed, 209 insertions(+)
+ create mode 100644 README-der14.md
+ create mode 100644 api/tests.py
+ create mode 100644 postman/step-blog.postman_collection.json
+
+diff --git a/README-der14.md b/README-der14.md
+new file mode 100644
+index 0000000..29e5612
+--- /dev/null
++++ b/README-der14.md
+@@ -0,0 +1,45 @@
++# Dərs 14 — Tag API (tapşırığın həlli)
++
++Bu qovluq təqdim edilmiş **Step-Django-FBV-CBV-main** layihəsinin üzərində qurulub. Əsas arxivdə `api/`, `pyproject.toml`, `uv.lock` yox idi; ona görə `api/` tətbiqi, `Post` və `Category` API-si də əlavə edilib. Saytın `blog/` və `accounts/` tətbiqləri dəyişdirilməyib.
++
++## Quraşdırma
++
++1. İnternet bağlantısı olan kompüterdə `uv sync` komandasını icra edin. Əgər platformanız üçün paket paylanması seçilməsə, əvvəl `uv lock`, sonra `uv sync` icra edin.
++2. `uv run manage.py migrate`
++3. `uv run manage.py loaddata blog/fixtures/demo_full.json`
++4. `uv run manage.py runserver`
++5. Sayt: `http://127.0.0.1:8000/`; API: `http://127.0.0.1:8000/api/tags/`
++
++> Qeyd: Paylaşılan arxivdə hazır SQLite bazası yoxdur. `demo_full.json` 5 dərc olunmuş post, 3 kateqoriya, 5 teq ehtiva edir. Tapşırıqda göstərilən 9/3/5 rəqəmləri yalnız nümunədir; faktiki nəticə bazaya uyğun hesablanır.
++
++## API endpoint-ləri
++
++| Metod | Ünvan | Gözlənilən nəticə |
++| --- | --- | --- |
++| GET | `/api/tags/` | 200, teq siyahısı |
++| POST | `/api/tags/` | 201, yeni teq |
++| GET | `/api/tags/1/` | 200, teq |
++| GET | `/api/tags/99/` | 404, teq tapılmadı |
++| PUT | `/api/tags/1/` | 200, yenilənmiş teq |
++| DELETE | `/api/tags/1/` | 204, boş cavab |
++| GET | `/api/stats/` | 200, `post_count/category_count/tag_count` |
++| GET/POST | `/api/posts/` | Post siyahısı / yeni post |
++| GET/PUT/DELETE | `/api/posts/1/` | Bir post |
++| GET/POST | `/api/categories/` | Kateqoriya siyahısı / yaradılması |
++| GET/PUT/DELETE | `/api/categories/1/` | Bir kateqoriya |
++
++Yeni teq üçün JSON: `{"name": "vscode", "slug": "vscode"}`. Eyni `slug` təkrarından ötrü serializer 400 qaytarır.
++
++## Yoxlama
++
++`uv run manage.py test api` və `uv run manage.py check`.
++
++`postman/step-blog.postman_collection.json` Postman Collection v2.1 formatında **6** istəyi ehtiva edir. Postman: Import -> faylı seçin.
++
++## Commit və GitHub
++
++Yalnız arxiv göndərildiyi üçün GitHub hesabınıza push edilməyib. Dəyişikliklər üç ayrı lokal commitlə hazırlanıb: **tag list**, **tag detail**, **stats**. `git-patches/` içindəki patch-lər eyni başlanğıc layihəyə ardıcıl tətbiq oluna bilər. Eyni GitHub repoda işləyirsinizsə, patch-ləri öz repoda tətbiq edib `git push` edin. `.venv/`, `db.sqlite3` gitə əlavə edilmir.
++
++## Texniki qeyd
++
++Hazırlanan mühitdə paket indeksinə internet çıxışı olmadığından real Django testlərini işə salmaq mümkün olmayıb. `uv.lock` içində PyPI distribusiya URL-ləri əlavə edilib və lokal olaraq pars olunur; burada internet olmadığı üçün `uv sync` və Django testləri tam icra edilməyib. Lazım gələrsə, `uv lock` ilə platformaya uyğun wheel siyahısını yeniləyin. Sintaksis və statik yoxlamalar aparılıb.
+diff --git a/api/tests.py b/api/tests.py
+new file mode 100644
+index 0000000..11ca5f9
+--- /dev/null
++++ b/api/tests.py
+@@ -0,0 +1,76 @@
++from django.contrib.auth.models import User
++from django.test import TestCase
++from django.urls import reverse
++from rest_framework.test import APIClient
++
++from blog.models import Category, Post, Tag
++
++
++class TagApiTests(TestCase):
++    def setUp(self):
++        self.client = APIClient()
++        self.tag = Tag.objects.create(name="python", slug="python")
++
++    def test_tag_list(self):
++        response = self.client.get(reverse("api:tag_list"))
++        self.assertEqual(response.status_code, 200)
++        self.assertEqual(response.json(), [{"id": self.tag.pk, "name": "python", "slug": "python"}])
++
++    def test_create_tag(self):
++        response = self.client.post(
++            reverse("api:tag_list"), {"name": "vscode", "slug": "vscode"}, format="json"
++        )
++        self.assertEqual(response.status_code, 201)
++        self.assertEqual(response.json()["slug"], "vscode")
++        self.assertEqual(Tag.objects.count(), 2)
++
++    def test_invalid_tag(self):
++        response = self.client.post(reverse("api:tag_list"), {"name": "missing-slug"}, format="json")
++        self.assertEqual(response.status_code, 400)
++
++    def test_tag_detail(self):
++        response = self.client.get(reverse("api:tag_detail", args=[self.tag.pk]))
++        self.assertEqual(response.status_code, 200)
++        self.assertEqual(response.json()["name"], "python")
++
++    def test_tag_not_found(self):
++        response = self.client.get(reverse("api:tag_detail", args=[99]))
++        self.assertEqual(response.status_code, 404)
++        self.assertEqual(response.json()["detail"], "No Tag matches the given query.")
++
++    def test_update_tag(self):
++        response = self.client.put(
++            reverse("api:tag_detail", args=[self.tag.pk]),
++            {"name": "django", "slug": "django"}, format="json",
++        )
++        self.assertEqual(response.status_code, 200)
++        self.tag.refresh_from_db()
++        self.assertEqual(self.tag.slug, "django")
++
++    def test_delete_tag(self):
++        response = self.client.delete(reverse("api:tag_detail", args=[self.tag.pk]))
++        self.assertEqual(response.status_code, 204)
++        self.assertFalse(Tag.objects.filter(pk=self.tag.pk).exists())
++
++    def test_stats_only_counts_published_posts(self):
++        author = User.objects.create_user(username="nigar", password="test12345")
++        category = Category.objects.create(name="Kod", slug="kod")
++        Post.objects.create(title="Public", author=author, category=category, content="Test", is_published=True)
++        Post.objects.create(title="Draft", author=author, category=category, content="Test", is_published=False)
++        response = self.client.get(reverse("api:stats"))
++        self.assertEqual(response.status_code, 200)
++        self.assertEqual(response.json(), {"post_count": 1, "category_count": 1, "tag_count": 1})
++
++    def test_stats_get_only(self):
++        self.assertEqual(self.client.post(reverse("api:stats"), {}, format="json").status_code, 405)
++
++    def test_post_list_and_create(self):
++        author = User.objects.create_user(username="murad", password="test12345")
++        category = Category.objects.create(name="News", slug="news")
++        response = self.client.post(
++            reverse("api:post_list"),
++            {"title": "Hello", "author": author.pk, "category": category.pk, "content": "Hello World"},
++            format="json",
++        )
++        self.assertEqual(response.status_code, 201)
++        self.assertEqual(self.client.get(reverse("api:post_list")).json()[0]["title"], "Hello")
+diff --git a/api/urls.py b/api/urls.py
+index 4f31bb8..311a6c8 100644
+--- a/api/urls.py
++++ b/api/urls.py
+@@ -11,4 +11,5 @@ urlpatterns = [
+     path("categories/<int:category_id>/", views.category_detail, name="category_detail"),
+     path("tags/", views.tag_list, name="tag_list"),
+     path("tags/<int:tag_id>/", views.tag_detail, name="tag_detail"),
++    path("stats/", views.stats, name="stats"),
+ ]
+diff --git a/api/views.py b/api/views.py
+index 4a4ab8c..09c738d 100644
+--- a/api/views.py
++++ b/api/views.py
+@@ -89,3 +89,13 @@ def tag_detail(request, tag_id):
+         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+     tag.delete()
+     return Response(status=status.HTTP_204_NO_CONTENT)
++
++
++@api_view(["GET"])
++def stats(request):
++    data = {
++        "post_count": Post.objects.filter(is_published=True).count(),
++        "category_count": Category.objects.count(),
++        "tag_count": Tag.objects.count(),
++    }
++    return Response(data)
+diff --git a/postman/step-blog.postman_collection.json b/postman/step-blog.postman_collection.json
+new file mode 100644
+index 0000000..857e928
+--- /dev/null
++++ b/postman/step-blog.postman_collection.json
+@@ -0,0 +1,52 @@
++{
++  "info": {
++    "name": "step-blog",
++    "description": "Dərs 14: Post və Tag API-si + stats. Başlamazdan əvvəl fixture: uv run manage.py loaddata blog/fixtures/demo_full.json",
++    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
++  },
++  "variable": [{"key": "base_url", "value": "http://127.0.0.1:8000"}],
++  "item": [
++    {
++      "name": "posts list",
++      "request": {"method": "GET", "url": "{{base_url}}/api/posts/"}
++    },
++    {
++      "name": "post detail",
++      "request": {"method": "GET", "url": "{{base_url}}/api/posts/1/"}
++    },
++    {
++      "name": "POST post",
++      "request": {
++        "method": "POST",
++        "header": [{"key": "Content-Type", "value": "application/json", "type": "text"}],
++        "body": {
++          "mode": "raw",
++          "raw": "{\n  \"title\": \"Yeni post\",\n  \"author\": 1,\n  \"category\": 1,\n  \"content\": \"Postman vasitəsilə yaradıldı.\",\n  \"tags\": [1],\n  \"is_published\": true\n}",
++          "options": {"raw": {"language": "json"}}
++        },
++        "url": "{{base_url}}/api/posts/"
++      }
++    },
++    {
++      "name": "tags list",
++      "request": {"method": "GET", "url": "{{base_url}}/api/tags/"}
++    },
++    {
++      "name": "POST tag",
++      "request": {
++        "method": "POST",
++        "header": [{"key": "Content-Type", "value": "application/json", "type": "text"}],
++        "body": {
++          "mode": "raw",
++          "raw": "{\n  \"name\": \"vscode\",\n  \"slug\": \"vscode\"\n}",
++          "options": {"raw": {"language": "json"}}
++        },
++        "url": "{{base_url}}/api/tags/"
++      }
++    },
++    {
++      "name": "stats",
++      "request": {"method": "GET", "url": "{{base_url}}/api/stats/"}
++    }
++  ]
++}
+diff --git a/uv.lock b/uv.lock
+index ac562e8..a705453 100644
+--- a/uv.lock
++++ b/uv.lock
+@@ -6,11 +6,19 @@ requires-python = ">=3.11"
+ name = "asgiref"
+ version = "3.12.1"
+ source = { registry = "https://pypi.org/simple" }
++sdist = { url = "https://files.pythonhosted.org/packages/e6/26/3b59f2bdae5f640389becb1f673cded775287f5fc4f816309d9ca9a3f93d/asgiref-3.12.1.tar.gz" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/c0/1b/54f4ad77cd8a584fa70746c47df988e002cf1ee1eba43364d46f87803647/asgiref-3.12.1-py3-none-any.whl" },
++]
+ 
+ [[package]]
+ name = "django"
+ version = "5.2.17"
+ source = { registry = "https://pypi.org/simple" }
++sdist = { url = "https://files.pythonhosted.org/packages/d5/d8/43e9d000519adceb189620b6869ff88031e046df91c2e9da72f8f6918399/django-5.2.17.tar.gz" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/df/f8/ce120525ca78f12b07daf65786679c5d0b54a75285a8958d3ae55e39da35/django-5.2.17-py3-none-any.whl" },
++]
+ dependencies = [
+     { name = "asgiref" },
+     { name = "sqlparse" },
+@@ -20,6 +28,10 @@ dependencies = [
+ name = "djangorestframework"
+ version = "3.16.1"
+ source = { registry = "https://pypi.org/simple" }
++sdist = { url = "https://files.pythonhosted.org/packages/8a/95/5376fe618646fde6899b3cdc85fd959716bb67542e273a76a80d9f326f27/djangorestframework-3.16.1.tar.gz" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/b0/ce/bf8b9d3f415be4ac5588545b5fcdbbb841977db1c1d923f7568eeabe1689/djangorestframework-3.16.1-py3-none-any.whl" },
++]
+ dependencies = [
+     { name = "django" },
+ ]
+@@ -28,11 +40,24 @@ dependencies = [
+ name = "pillow"
+ version = "12.3.0"
+ source = { registry = "https://pypi.org/simple" }
++sdist = { url = "https://files.pythonhosted.org/packages/1c/3d/bb7fca845737cf9d7dbde16ed1843984665ff2e0a518f5db43e77ec540b9/pillow-12.3.0.tar.gz" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/3b/2d/ede717bc1144f63886c21fd349bb95860b0d1a21149ff16f2bb362b612b6/pillow-12.3.0-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl" },
++    { url = "https://files.pythonhosted.org/packages/63/c6/4bad1b18d132a50b27e1365e1ab163616f7a5bb56d330f66f9d1d9d4f9d4/pillow-12.3.0-cp311-cp311-win_amd64.whl" },
++    { url = "https://files.pythonhosted.org/packages/84/21/a35af28dcc61f37ed850a2d64c65c701321dfbf25085e469d5559360cbbf/pillow-12.3.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl" },
++    { url = "https://files.pythonhosted.org/packages/45/89/da2f7971a317f83d807fdd4065c0af40208e59e692cc43d315a71a0e96d1/pillow-12.3.0-cp312-cp312-win_amd64.whl" },
++    { url = "https://files.pythonhosted.org/packages/f7/62/de5bdd77d935331f4f802edc11e4d82950f642caad6cb2f949837b8560e2/pillow-12.3.0-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl" },
++    { url = "https://files.pythonhosted.org/packages/a6/9b/7a58e61d62be561da3a356fe2384d4059a6345fc130e23ef1c36a5b81d24/pillow-12.3.0-cp313-cp313-win_amd64.whl" },
++]
+ 
+ [[package]]
+ name = "sqlparse"
+ version = "0.6.0"
+ source = { registry = "https://pypi.org/simple" }
++sdist = { url = "https://files.pythonhosted.org/packages/5f/d3/3f06a1006f2261d1342aefb3c71eed02f5d4ca5bdbecd86ebc12ad38306e/sqlparse-0.6.0.tar.gz" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/d9/50/f00935da0ec7cbf325f8dc4f772ae46fbc7b672dd62876e73f0a94adda57/sqlparse-0.6.0-py3-none-any.whl" },
++]
+ 
+ [[package]]
+ name = "step-blog"
+-- 
+2.47.3
+

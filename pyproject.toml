@@ -1,0 +1,13 @@
+[project]
+name = "step-blog"
+version = "0.1.0"
+description = "STEP IT Academy Python Web Development - Django blog and REST API"
+requires-python = ">=3.11"
+dependencies = [
+    "Django==5.2.17",
+    "djangorestframework==3.16.1",
+    "pillow==12.3.0",
+]
+
+[tool.uv]
+package = false

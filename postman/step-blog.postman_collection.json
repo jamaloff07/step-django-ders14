@@ -1,0 +1,52 @@
+{
+  "info": {
+    "name": "step-blog",
+    "description": "Dərs 14: Post və Tag API-si + stats. Başlamazdan əvvəl fixture: uv run manage.py loaddata blog/fixtures/demo_full.json",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [{"key": "base_url", "value": "http://127.0.0.1:8000"}],
+  "item": [
+    {
+      "name": "posts list",
+      "request": {"method": "GET", "url": "{{base_url}}/api/posts/"}
+    },
+    {
+      "name": "post detail",
+      "request": {"method": "GET", "url": "{{base_url}}/api/posts/1/"}
+    },
+    {
+      "name": "POST post",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json", "type": "text"}],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"title\": \"Yeni post\",\n  \"author\": 1,\n  \"category\": 1,\n  \"content\": \"Postman vasitəsilə yaradıldı.\",\n  \"tags\": [1],\n  \"is_published\": true\n}",
+          "options": {"raw": {"language": "json"}}
+        },
+        "url": "{{base_url}}/api/posts/"
+      }
+    },
+    {
+      "name": "tags list",
+      "request": {"method": "GET", "url": "{{base_url}}/api/tags/"}
+    },
+    {
+      "name": "POST tag",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json", "type": "text"}],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"vscode\",\n  \"slug\": \"vscode\"\n}",
+          "options": {"raw": {"language": "json"}}
+        },
+        "url": "{{base_url}}/api/tags/"
+      }
+    },
+    {
+      "name": "stats",
+      "request": {"method": "GET", "url": "{{base_url}}/api/stats/"}
+    }
+  ]
+}

@@ -1,0 +1,286 @@
+From 1002e835dbd12dc00d4c1a0b18f491d8ceead464 Mon Sep 17 00:00:00 2001
+From: Homework Implementation <local@example.invalid>
+Date: Sun, 4 Oct 2026 22:02:41 +0000
+Subject: [PATCH 1/3] tag list
+
+---
+ api/__init__.py    |  0
+ api/apps.py        |  6 ++++
+ api/serializers.py | 25 +++++++++++++++
+ api/urls.py        | 13 ++++++++
+ api/views.py       | 76 ++++++++++++++++++++++++++++++++++++++++++++++
+ config/settings.py |  2 ++
+ config/urls.py     |  1 +
+ pyproject.toml     | 13 ++++++++
+ requirements.txt   |  1 +
+ uv.lock            | 52 +++++++++++++++++++++++++++++++
+ 10 files changed, 189 insertions(+)
+ create mode 100644 api/__init__.py
+ create mode 100644 api/apps.py
+ create mode 100644 api/serializers.py
+ create mode 100644 api/urls.py
+ create mode 100644 api/views.py
+ create mode 100644 pyproject.toml
+ create mode 100644 uv.lock
+
+diff --git a/api/__init__.py b/api/__init__.py
+new file mode 100644
+index 0000000..e69de29
+diff --git a/api/apps.py b/api/apps.py
+new file mode 100644
+index 0000000..878e7d5
+--- /dev/null
++++ b/api/apps.py
+@@ -0,0 +1,6 @@
++from django.apps import AppConfig
++
++
++class ApiConfig(AppConfig):
++    default_auto_field = "django.db.models.BigAutoField"
++    name = "api"
+diff --git a/api/serializers.py b/api/serializers.py
+new file mode 100644
+index 0000000..30bf10b
+--- /dev/null
++++ b/api/serializers.py
+@@ -0,0 +1,25 @@
++from rest_framework import serializers
++
++from blog.models import Category, Post, Tag
++
++
++class PostSerializer(serializers.ModelSerializer):
++    class Meta:
++        model = Post
++        fields = (
++            "id", "title", "author", "category", "content", "tags",
++            "is_published", "is_featured", "views", "created_at",
++        )
++        read_only_fields = ("id", "views", "created_at")
++
++
++class CategorySerializer(serializers.ModelSerializer):
++    class Meta:
++        model = Category
++        fields = ("id", "name", "slug", "description")
++
++
++class TagSerializer(serializers.ModelSerializer):
++    class Meta:
++        model = Tag
++        fields = ("id", "name", "slug")
+diff --git a/api/urls.py b/api/urls.py
+new file mode 100644
+index 0000000..8e223ed
+--- /dev/null
++++ b/api/urls.py
+@@ -0,0 +1,13 @@
++from django.urls import path
++
++from . import views
++
++app_name = "api"
++
++urlpatterns = [
++    path("posts/", views.post_list, name="post_list"),
++    path("posts/<int:post_id>/", views.post_detail, name="post_detail"),
++    path("categories/", views.category_list, name="category_list"),
++    path("categories/<int:category_id>/", views.category_detail, name="category_detail"),
++    path("tags/", views.tag_list, name="tag_list"),
++]
+diff --git a/api/views.py b/api/views.py
+new file mode 100644
+index 0000000..7c0a17b
+--- /dev/null
++++ b/api/views.py
+@@ -0,0 +1,76 @@
++from django.shortcuts import get_object_or_404
++from rest_framework import status
++from rest_framework.decorators import api_view
++from rest_framework.response import Response
++
++from blog.models import Category, Post, Tag
++from .serializers import CategorySerializer, PostSerializer, TagSerializer
++
++
++@api_view(["GET", "POST"])
++def post_list(request):
++    if request.method == "GET":
++        posts = Post.objects.filter(is_published=True)
++        return Response(PostSerializer(posts, many=True).data)
++
++    serializer = PostSerializer(data=request.data)
++    if serializer.is_valid():
++        serializer.save()
++        return Response(serializer.data, status=status.HTTP_201_CREATED)
++    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
++
++
++@api_view(["GET", "PUT", "DELETE"])
++def post_detail(request, post_id):
++    post = get_object_or_404(Post, pk=post_id)
++    if request.method == "GET":
++        return Response(PostSerializer(post).data)
++    if request.method == "PUT":
++        serializer = PostSerializer(post, data=request.data)
++        if serializer.is_valid():
++            serializer.save()
++            return Response(serializer.data)
++        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
++    post.delete()
++    return Response(status=status.HTTP_204_NO_CONTENT)
++
++
++@api_view(["GET", "POST"])
++def category_list(request):
++    if request.method == "GET":
++        return Response(CategorySerializer(Category.objects.all(), many=True).data)
++
++    serializer = CategorySerializer(data=request.data)
++    if serializer.is_valid():
++        serializer.save()
++        return Response(serializer.data, status=status.HTTP_201_CREATED)
++    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
++
++
++@api_view(["GET", "PUT", "DELETE"])
++def category_detail(request, category_id):
++    category = get_object_or_404(Category, pk=category_id)
++    if request.method == "GET":
++        return Response(CategorySerializer(category).data)
++    if request.method == "PUT":
++        serializer = CategorySerializer(category, data=request.data)
++        if serializer.is_valid():
++            serializer.save()
++            return Response(serializer.data)
++        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
++    category.delete()
++    return Response(status=status.HTTP_204_NO_CONTENT)
++
++
++@api_view(["GET", "POST"])
++def tag_list(request):
++    if request.method == "GET":
++        tags = Tag.objects.all()
++        serializer = TagSerializer(tags, many=True)
++        return Response(serializer.data)
++
++    serializer = TagSerializer(data=request.data)
++    if serializer.is_valid():
++        serializer.save()
++        return Response(serializer.data, status=status.HTTP_201_CREATED)
++    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+diff --git a/config/settings.py b/config/settings.py
+index e9aae82..b4b93fa 100644
+--- a/config/settings.py
++++ b/config/settings.py
+@@ -37,6 +37,8 @@ INSTALLED_APPS = [
+     'django.contrib.sessions',
+     'django.contrib.messages',
+     'django.contrib.staticfiles',
++    'rest_framework',  # Django REST Framework
++    'api',  # DƏRS 14: API endpoint-ləri
+     'blog',  # [DƏRS 7]
+     'accounts',  # [DƏRS 12] qeydiyyat, giriş, profil öz app-ımız — bunu yazmasaq Django app-ı görmür
+ ]
+diff --git a/config/urls.py b/config/urls.py
+index 2d22d13..e92337e 100644
+--- a/config/urls.py
++++ b/config/urls.py
+@@ -21,6 +21,7 @@ from django.urls import path, include  # [DƏRS 7] include əlavə etdik
+ 
+ urlpatterns = [
+     path('admin/', admin.site.urls),
++    path('api/', include('api.urls')),  # DƏRS 14: REST API
+     path('accounts/', include('accounts.urls')),  # [DƏRS 12]
+     path('', include('blog.urls')),  # [DƏRS 7] qalan bütün ünvanlar blog/urls.py-a gedir
+ ]
+diff --git a/pyproject.toml b/pyproject.toml
+new file mode 100644
+index 0000000..5d885a5
+--- /dev/null
++++ b/pyproject.toml
+@@ -0,0 +1,13 @@
++[project]
++name = "step-blog"
++version = "0.1.0"
++description = "STEP IT Academy Python Web Development - Django blog and REST API"
++requires-python = ">=3.11"
++dependencies = [
++    "Django==5.2.17",
++    "djangorestframework==3.16.1",
++    "pillow==12.3.0",
++]
++
++[tool.uv]
++package = false
+diff --git a/requirements.txt b/requirements.txt
+index 83bdfb5..295490a 100644
+--- a/requirements.txt
++++ b/requirements.txt
+@@ -2,3 +2,4 @@ asgiref==3.12.1
+ Django==5.2.17
+ pillow==12.3.0
+ sqlparse==0.6.0
++djangorestframework==3.16.1
+diff --git a/uv.lock b/uv.lock
+new file mode 100644
+index 0000000..ac562e8
+--- /dev/null
++++ b/uv.lock
+@@ -0,0 +1,52 @@
++version = 1
++revision = 3
++requires-python = ">=3.11"
++
++[[package]]
++name = "asgiref"
++version = "3.12.1"
++source = { registry = "https://pypi.org/simple" }
++
++[[package]]
++name = "django"
++version = "5.2.17"
++source = { registry = "https://pypi.org/simple" }
++dependencies = [
++    { name = "asgiref" },
++    { name = "sqlparse" },
++]
++
++[[package]]
++name = "djangorestframework"
++version = "3.16.1"
++source = { registry = "https://pypi.org/simple" }
++dependencies = [
++    { name = "django" },
++]
++
++[[package]]
++name = "pillow"
++version = "12.3.0"
++source = { registry = "https://pypi.org/simple" }
++
++[[package]]
++name = "sqlparse"
++version = "0.6.0"
++source = { registry = "https://pypi.org/simple" }
++
++[[package]]
++name = "step-blog"
++version = "0.1.0"
++source = { virtual = "." }
++dependencies = [
++    { name = "django" },
++    { name = "djangorestframework" },
++    { name = "pillow" },
++]
++
++[package.metadata]
++requires-dist = [
++    { name = "django", specifier = "==5.2.17" },
++    { name = "djangorestframework", specifier = "==3.16.1" },
++    { name = "pillow", specifier = "==12.3.0" },
++]
+-- 
+2.47.3
+
